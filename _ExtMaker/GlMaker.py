@@ -113,12 +113,17 @@ class MyGenerator(Generator):
 
     def generate_types(self, types):
         for ttype in types:
-            if (ttype.is_preprocessor is True) or ('APIENTRY' in ttype.raw):
+            if ttype.is_preprocessor is True:
+                print ('>>\n{} {} {}<<\n'.format(ttype.name, ttype.api, ttype.raw))
+                pass
+            elif 'APIENTRY' in ttype.raw:
+                print ('>>\n{} {} {}<<\n'.format(ttype.name, ttype.api, ttype.raw))
                 pass
             else:
                 stype = ttype.raw.split(' ')
                 istypedef = stype.pop(0) == 'typedef'
                 if not istypedef:
+                    # print ('>>\n{} {} {}<<\n'.format(ttype.name, ttype.api, ttype.raw))
                     continue
                 name = stype.pop(len(stype) - 1)
                 name = name.replace(';', '')
@@ -156,13 +161,14 @@ def get_spec(value, announce):
     global specsPath
 
     if value not in SPECS:
-        raise argparse.ArgumentTypeError('Unknown specification')
+        announce(RuntimeError('Unknown specification: {}'.format(value)), log.ERROR)
+        exit(1)
 
     xmlName = value + '.xml'
     spec_cls = SPECS[value]
     xmlPath = os.path.join(specsPath, xmlName)
 
     if not os.path.exists(xmlPath):
-        announce('retrieving \'{}\' specification from SVN...'.format(value), log.INFO)
+        announce('Retrieving \'{}\' specification from SVN...'.format(value), log.INFO)
         saveFromRemote(xmlName, xmlPath)
     return spec_cls.from_file(xmlPath)

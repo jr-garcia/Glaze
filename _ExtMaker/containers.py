@@ -4,6 +4,9 @@ from distutils import log
 from keyword import iskeyword
 from collections import defaultdict
 
+from .includes.glad_related import *
+from .includes.gl import *
+
 UNHANDLED_GL_TYPES = [None, 'GLhandleARB', 'GLsync']
 
 
@@ -36,32 +39,23 @@ class param:
 
 
 class pxd:
-    GLAD_RELATED = """
-    cdef struct gladGLversionStruct:
-        int major
-        int minor
-
-    ctypedef void* (* GLADloadproc)(const char *name)
-    cdef gladGLversionStruct GLVersion
-    cdef int gladLoadGL()
-    cdef int gladLoadGLLoader(GLADloadproc)
-    """
-
     def __init__(self, funcs, types, dest, announce, api):
         pxdPath = os.path.join(dest, 'c{}.pxd'.format(api))
         announce('Generating {}...'.format(pxdPath), log.INFO)
 
         with open(pxdPath, 'w') as dest:
             print('from libc.stdint cimport *', file=dest)
-            print('cdef extern from \'glad.h\' nogil:', file=dest)
-            print('    # GLAD RELATED >>\n{}'.format(self.GLAD_RELATED), file=dest)
+            print('cdef extern from \'glad{}.h\' nogil:'.format('_' + api if api != 'gl' else ''), file=dest)
+            if api == 'gl':
+                print('    # GLAD RELATED >>\n{}'.format(GLAD_RELATED_PXD), file=dest)
 
             print('    # TYPES >>\n', file=dest)
-            # print('ctypedef bint bool')
+            print('    ctypedef bint bool', file=dest)
+            print('    ctypedef bint BOOL', file=dest)
             for t in types.items():
                 if 'struct' in t[1]:
                     continue
-                print('    ctypedef {} {}'.format(t[1], t[0]), file=dest)
+                print('    ctypedef {} {}'.format(t[1], t[0].replace('(void)', '()')), file=dest)
 
             print('\n    # FUNCTIONS >>\n', file=dest)
             sortedFuncKeys = sorted(funcs)
@@ -80,19 +74,6 @@ class pxd:
 
 
 class pyx:
-    GLAD_RELATED = """
-class gladGLversionStruct:
-    def __init__(self, major, minor):
-        self.major = major
-        self.minor = minor
-
-# GLVersion = gladGLversionStruct()
-
-def loadGL():
-    return {prefix}.gladLoadGL()
-
-    """
-
     def __init__(self, funcs, enums, types, baseTypes, dest, announce, api, useNoGil):
         self.api = 'c' + api
         self.types = types
@@ -111,15 +92,19 @@ def loadGL():
 
             # cImports >>
             print('cimport {}'.format(self.api), file=dest)
-            print('from libcpp.vector cimport vector', file=dest)
             print('from libc.stdint cimport *', file=dest)
-            print('from cpython.ref cimport PyObject', file=dest)
             # print('print(\'lib\', LIBRARY)', file=dest)
 
-            # Rest >>
-            print('\n# GLAD RELATED >>\n{}'.format(self.GLAD_RELATED.format(prefix=self.api)), file=dest)
+            print('\n# TYPES >>\n', file=dest)
+            print('ctypedef bint bool', file=dest)
+            print('ctypedef bint BOOL', file=dest)
+            print(voidp_typedef, file=dest)
 
-            print('# FUNCTIONS >>', file=dest)
+            # Rest >>
+            if api == 'gl':
+                print('\n# GLAD RELATED >>\n{}'.format(GLAD_RELATED_PYX.format(prefix=self.api)), file=dest)
+
+            print('\n# FUNCTIONS >>', file=dest)
             sortedFuncKeys = sorted(funcs)
             for fk in sortedFuncKeys:
                 f = funcs[fk]
@@ -128,15 +113,22 @@ def loadGL():
                 if sign is not None:
                     print('\n{}'.format(sign), file=dest)
 
-            print('\n#ENUMS >>\n', file=dest)
+            print('\n#ENUMS >>', file=dest)
             eGroups = defaultdict(list)
             for e in enums:
-                eGroups[e.group or 'GL'].append((e.name, e.value))
+                eGroups[e.group or api.upper()].append((e.name, e.value))
             for k in eGroups.keys():
                 enumList = eGroups[k]
                 print('\nclass {}:'.format(k), file=dest)
                 for e in enumList:
-                    print('    {} = {}'.format(e[0], e[1]), file=dest)
+                    fev = e[1]
+                    if fev.startswith('(('):
+                        fev = fev.strip('()')
+                        fev = fev.strip('()')
+                        fev = fev.replace(')', '>')
+                        fev = fev.replace('(', '')
+                        fev = '(<{})'.format(fev)
+                    print('    {} = {}'.format(e[0], fev), file=dest)
 
             for c in self.converters.values():
                 print('', file=dest)
@@ -157,16 +149,18 @@ def loadGL():
                     rType = p.type
 
             if rType is not None and rType == 'void':
-                rType = 'int'
+                try:
+                    plen = p.is_pointer
+                except AttributeError:
+                    plen = p.pointerLen
+                if plen > 0:
+                    rType = 'voidp'
             return rType
 
         def paramTypeResolve(p):
             return p[0] + ' ' if p[0] is not None else ''
 
         sign = []
-        locals = []
-        returns = []
-        # byrefParams = []
         callParams = []
         pythonParams = []
 
@@ -181,12 +175,15 @@ def loadGL():
             else:
                 bType = getBaseType(p)
                 if p.pointerLen > 0:
-                    if p.pointerLen < 2:
-                        pythonParams.append((bType + '[:]', p.name))
+                    if p.pointerLen == 1:
+                        viewCode = '[::1]' if bType != 'voidp' else ''
+                        pythonParams.append((bType + viewCode, p.name))
                         callParams.append('&{}[0]'.format(p.name))
                     else:
                         pythonParams.append((bType + '[:]', p.name))
-                        callParams.append('<{}**>&{}[0]'.format(bType, p.name))
+                        callParams.append('<{}{}**>&{}[0]'.format('const ' if p.const else '',
+                                                                  bType,
+                                                                  p.name))
                 else:
                     callParams.append(p.name)
                     pythonParams.append((bType, p.name))
@@ -196,23 +193,15 @@ def loadGL():
                                                    params=', '.join([paramTypeResolve(p) +
                                                                      p[1] for p in pythonParams])))
 
-        # for p in locals:
-        #     bType = getBaseType(p)
-        #     converter = self.converters.get(bType)
-        #     assert isinstance(converter, self.pointerConverter)
-        #     sign.append('    cdef {ret} {pName}_v = {name}({pName})'.format(ret=converter.converter_ret,
-        #                                                                      name=converter.converter_name,
-        #                                                                      pName=p.name))
-
         if hasRet:
             bType = getBaseType(func.ret)
             if func.ret.is_pointer == 1:
-                sign.append('    cdef {}* ret'.format(bType))
+                sign.append('    cdef {}{}* ret'.format('const ' if func.ret.is_const else '', bType))
             elif func.ret.is_pointer > 1:
                 raise NotImplementedError('Pointer to pointer return type is not implemented. Please fill a bug '
                                           'report.')
             else:
-                sign.append('    cdef {} ret'.format(bType))
+                sign.append('    cdef {}{} ret'.format('const ' if func.ret.is_const else '', bType))
 
         # The actual call
         noGil = '    with nogil:\n    ' if self.useNoGil else ''
@@ -221,13 +210,6 @@ def loadGL():
                                                                            prefix=self.api + '.',
                                                                            funcName=func.name,
                                                                            cParams=', '.join(callParams)))
-
-        # for p in returns:
-        #     bType = getBaseType(p)
-        #     converter = self.converters.get(bType)
-        #     assert isinstance(converter, self.pointerConverter)
-        #     sign.append('    {updtrName}({pName}_v, {pName})'.format(updtrName=converter.updater_name,
-        #                                                              pName=p.name))
 
         if hasRet:
             sign.append('    return ret')

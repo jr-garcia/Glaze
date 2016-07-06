@@ -2,6 +2,7 @@ from Cython.Build import cythonize
 from setuptools import setup, Extension
 from distutils.cmd import Command
 from setuptools.command.build_ext import build_ext
+from setuptools.command.install import install
 from distutils import log
 from sys import platform
 import os
@@ -97,8 +98,6 @@ class build_ext_pre(build_ext):
         for file in os.listdir(glazeAbsPath):
             file = os.path.join(glazeAbsPath, file)
             if os.path.isfile(file):
-                if os.path.splitext(file)[1] == '.pxd':
-                    data.append(file)
                 if os.path.splitext(file)[1] == '.cpp':
                     sources.append(file)
 
@@ -108,6 +107,17 @@ class build_ext_pre(build_ext):
                 sources.append(file)
 
         build_ext.__init__(self, dist)
+
+
+class install_pre(install):
+    def __init__(self, dist):
+        for file in os.listdir(glazeAbsPath):
+            file = os.path.join(glazeAbsPath, file)
+            if os.path.isfile(file):
+                if os.path.splitext(file)[1] == '.pxd':
+                    data.append(file)
+
+        install.__init__(self, dist)
 
 
 setup(
@@ -122,7 +132,7 @@ setup(
                   extra_compile_args=extraArgs,
                   language="c++")]),
 
-    cmdclass={'regen': regen, 'build_ext': build_ext_pre},
+    cmdclass={'regen': regen, 'build_ext': build_ext_pre, 'install': install_pre},
     # requires=['requests', 'Cython', 'glad'],
     data_files=data,
 )
