@@ -13,6 +13,8 @@ cdef extern from 'glad.h' nogil:
     
     # TYPES >>
 
+    ctypedef bint bool
+    ctypedef bint BOOL
     ctypedef unsigned int GLenum
     ctypedef unsigned char GLboolean
     ctypedef unsigned int GLbitfield

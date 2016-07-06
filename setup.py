@@ -72,18 +72,25 @@ class regen(Command):
             self.extensions = str(self.extensions).split(',')
 
     def run(self):
-        from _ExtMaker.GlMaker import Maker
+        from _ExtMaker.GlobalMaker import Maker
 
         def regenApi(api, version):
-            # ver = {api: version} if version is not None else None
             stuff = Maker(glazeAbsPath, specsAbsPath, gladAbsPath, api, {api: version}, self.announce, self.extensions)
             stuff.create(self.avoidnogil)
 
         for api in self.apis:
             regenApi(api, self.versions.get(api))
-            cythonize([os.path.join(glazeAbsPath, "{}.pyx".format(api))],
+            apiPath = os.path.join(glazeAbsPath, api)
+            cythonizables = []
+            for file in os.listdir(apiPath):
+                file = os.path.join(apiPath, file)
+                if os.path.isfile(file):
+                    if os.path.splitext(file)[1] == '.pyx':
+                        cythonizables.append(file)
+
+            cythonize(cythonizables,
                       language='c++',
-                      compile_time_env={'LIBRARY': b'default'}
+                      # compile_time_env={'LIBRARY': b'default'}
                       )
 
         self.announce('Done. Now you can build_ext / install', log.INFO)

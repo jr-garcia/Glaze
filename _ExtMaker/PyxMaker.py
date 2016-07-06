@@ -1,125 +1,63 @@
 from __future__ import print_function
+
 import os
-from distutils import log
-from keyword import iskeyword
 from collections import defaultdict
+from distutils import log
 
-from .includes.glad_related import *
-from .includes.gl import *
-
-UNHANDLED_GL_TYPES = [None, 'GLhandleARB', 'GLsync']
-
-
-class function:
-    def __init__(self, func, types):
-        self.name = func.proto.name
-        self.ret = func.proto.ret
-        self.params = [param(p, types) for p in func.params]
-
-    def __repr__(self):
-        return '{} {}({})'.format(self.ret, self.name, ', '.join([str(p) for p in self.params]))
+from _ExtMaker.ObjectTypes import function
+from _ExtMaker.includes.gl import voidp_typedef
+from _ExtMaker.includes.glad_related import GLAD_RELATED_PYX
 
 
-class param:
-    def __init__(self, p, types):
-        self.name = self.safeIfKey(p.name)
-        self.const = p.type.is_const
-        self.pointerLen = p.type.is_pointer
-        self.type = types.get(p.type.type)
-
-    def __repr__(self):
-        return '{}{}{} {}'.format('const ' if self.const else '', self.type, '*' * self.pointerLen, self.name)
-
-    @staticmethod
-    def safeIfKey(pName):
-        if iskeyword(pName):
-            return '_' + pName + '_'
-        else:
-            return pName
-
-
-class pxd:
-    def __init__(self, funcs, types, dest, announce, api):
-        pxdPath = os.path.join(dest, 'c{}.pxd'.format(api))
-        announce('Generating {}...'.format(pxdPath), log.INFO)
-
-        with open(pxdPath, 'w') as dest:
-            print('from libc.stdint cimport *', file=dest)
-            print('cdef extern from \'glad{}.h\' nogil:'.format('_' + api if api != 'gl' else ''), file=dest)
-            if api == 'gl':
-                print('    # GLAD RELATED >>\n{}'.format(GLAD_RELATED_PXD), file=dest)
-
-            print('    # TYPES >>\n', file=dest)
-            print('    ctypedef bint bool', file=dest)
-            print('    ctypedef bint BOOL', file=dest)
-            for t in types.items():
-                if 'struct' in t[1]:
-                    continue
-                print('    ctypedef {} {}'.format(t[1], t[0].replace('(void)', '()')), file=dest)
-
-            print('\n    # FUNCTIONS >>\n', file=dest)
-            sortedFuncKeys = sorted(funcs)
-            for fk in sortedFuncKeys:
-                f = funcs[fk]
-                nf = function(f, types)
-                discard = False
-                if nf.ret.type in UNHANDLED_GL_TYPES:
-                    continue
-                for p in nf.params:
-                    if p.type in UNHANDLED_GL_TYPES:
-                        discard = True
-                        break
-                if not discard:
-                    print('    cdef {}'.format(nf), file=dest)
-
-
-class pyx:
+class PyxMaker:
     def __init__(self, funcs, enums, types, baseTypes, dest, announce, api, useNoGil):
-        self.api = 'c' + api
+        self.announce = announce
+        self.enums = enums
+        self.funcs = funcs
+        self.c_apiName = 'c' + api
+        self.apiName = api
         self.types = types
         self.baseTypes = baseTypes
         self.dest = dest
         self.useNoGil = useNoGil
         self.converters = {}
-        pyxPath = os.path.join(dest, '{}.pyx'.format(self.api[1:]))
-        announce('Generating {}...'.format(pyxPath), log.INFO)
-        with open(pyxPath, 'w') as dest:
-            # Cython specifics >>
-            print('#cython: boundscheck=False', file=dest)
-            print('#cython: embedsignature=True', file=dest)
-            print('#cython: c_string_type=str', file=dest)
-            print('#cython: c_string_encoding=ascii', file=dest)
 
+        self.apiPath = os.path.join(self.dest, self.apiName)
+        if not os.path.exists(self.apiPath):
+            os.mkdir(self.apiPath)
+
+    def writeAll(self):
+        self._writeInit()
+
+    def _writeInit(self):
+        pyxPath = os.path.join(self.apiPath, '__init__.pyx')
+        self.announce('Generating {}...'.format(pyxPath), log.INFO)
+        with open(pyxPath, 'w') as pyxFile:
             # cImports >>
-            print('cimport {}'.format(self.api), file=dest)
-            print('from libc.stdint cimport *', file=dest)
-            # print('print(\'lib\', LIBRARY)', file=dest)
-
-            print('\n# TYPES >>\n', file=dest)
-            print('ctypedef bint bool', file=dest)
-            print('ctypedef bint BOOL', file=dest)
-            print(voidp_typedef, file=dest)
+            print('from glaze cimport {}'.format(self.c_apiName), file=pyxFile)
+            print('from libc.stdint cimport *', file=pyxFile)
+            # print('print(\'lib\', LIBRARY)', file=pyxFile)
 
             # Rest >>
-            if api == 'gl':
-                print('\n# GLAD RELATED >>\n{}'.format(GLAD_RELATED_PYX.format(prefix=self.api)), file=dest)
+            if self.apiName == 'gl':
+                print('\n# GLAD RELATED >>\n{}'.format(GLAD_RELATED_PYX.format(prefix=self.c_apiName)), file=pyxFile)
 
-            print('\n# FUNCTIONS >>', file=dest)
-            sortedFuncKeys = sorted(funcs)
+            print('\n# FUNCTIONS >>', file=pyxFile)
+            sortedFuncKeys = sorted(self.funcs)
             for fk in sortedFuncKeys:
-                f = funcs[fk]
-                nf = function(f, types)
-                sign = self.buildPyxFunc(nf)
+                f = self.funcs[fk]
+                nf = function(f, self.types)
+                sign = self._buildPyxFunc(nf)
                 if sign is not None:
-                    print('\n{}'.format(sign), file=dest)
+                    print('\nfrom _{name} import {name}'.format(name=nf.name), file=pyxFile)
 
-            print('\n#ENUMS >>', file=dest)
+            print('\n#ENUMS >>', file=pyxFile)
             eGroups = defaultdict(list)
-            for e in enums:
-                eGroups[e.group or api.upper()].append((e.name, e.value))
+            for e in self.enums:
+                eGroups[e.group or self.apiName.upper()].append((e.name, e.value))
             for k in eGroups.keys():
                 enumList = eGroups[k]
-                print('\nclass {}:'.format(k), file=dest)
+                print('\nclass {}:'.format(k), file=pyxFile)
                 for e in enumList:
                     fev = e[1]
                     if fev.startswith('(('):
@@ -128,13 +66,67 @@ class pyx:
                         fev = fev.replace(')', '>')
                         fev = fev.replace('(', '')
                         fev = '(<{})'.format(fev)
-                    print('    {} = {}'.format(e[0], fev), file=dest)
+                    print('    {} = {}'.format(e[0], fev), file=pyxFile)
 
             for c in self.converters.values():
-                print('', file=dest)
-                print(repr(c), file=dest)
+                print('', file=pyxFile)
+                print(repr(c), file=pyxFile)
 
-    def buildPyxFunc(self, func):
+    def _writeFunctions(self):
+        pyxPath = os.path.join(self.dest, '{}.pyx'.format(self.c_apiName[1:]))
+        self.announce('Generating {}...'.format(pyxPath), log.INFO)
+        with open(pyxPath, 'w') as pyxFile:
+            # Cython specifics >>
+            print('#cython: boundscheck=False', file=pyxFile)
+            print('#cython: embedsignature=True', file=pyxFile)
+            print('#cython: c_string_type=str', file=pyxFile)
+            print('#cython: c_string_encoding=ascii', file=pyxFile)
+
+            # cImports >>
+            print('cimport {}'.format(self.c_apiName), file=pyxFile)
+            print('from libc.stdint cimport *', file=pyxFile)
+            # print('print(\'lib\', LIBRARY)', file=pyxFile)
+
+            print('\n# TYPES >>\n', file=pyxFile)
+            print('ctypedef bint bool', file=pyxFile)
+            print('ctypedef bint BOOL', file=pyxFile)
+            print(voidp_typedef, file=pyxFile)
+
+            # Rest >>
+            if self.apiName == 'gl':
+                print('\n# GLAD RELATED >>\n{}'.format(GLAD_RELATED_PYX.format(prefix=self.c_apiName)), file=pyxFile)
+
+            print('\n# FUNCTIONS >>', file=pyxFile)
+            sortedFuncKeys = sorted(self.funcs)
+            for fk in sortedFuncKeys:
+                f = self.funcs[fk]
+                nf = function(f, types)
+                sign = self._buildPyxFunc(nf)
+                if sign is not None:
+                    print('\n{}'.format(sign), file=pyxFile)
+
+            print('\n#ENUMS >>', file=pyxFile)
+            eGroups = defaultdict(list)
+            for e in self.enums:
+                eGroups[e.group or self.apiName.upper()].append((e.name, e.value))
+            for k in eGroups.keys():
+                enumList = eGroups[k]
+                print('\nclass {}:'.format(k), file=pyxFile)
+                for e in enumList:
+                    fev = e[1]
+                    if fev.startswith('(('):
+                        fev = fev.strip('()')
+                        fev = fev.strip('()')
+                        fev = fev.replace(')', '>')
+                        fev = fev.replace('(', '')
+                        fev = '(<{})'.format(fev)
+                    print('    {} = {}'.format(e[0], fev), file=pyxFile)
+
+            for c in self.converters.values():
+                print('', file=pyxFile)
+                print(repr(c), file=pyxFile)
+
+    def _buildPyxFunc(self, func):
         def getBaseType(p):
             base = self.baseTypes.get(p.type)
             ctype = self.types.get(p.type)
@@ -207,7 +199,7 @@ class pyx:
         noGil = '    with nogil:\n    ' if self.useNoGil else ''
         sign.append('{noGil}    {ret}{prefix}{funcName}({cParams})'.format(noGil=noGil,
                                                                            ret='ret = ' if hasRet else '',
-                                                                           prefix=self.api + '.',
+                                                                           prefix=self.c_apiName + '.',
                                                                            funcName=func.name,
                                                                            cParams=', '.join(callParams)))
 
