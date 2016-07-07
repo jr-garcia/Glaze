@@ -6,6 +6,13 @@ import numpy as np
 
 from glaze.gl import *
 
+
+'''
+I can't find the source of this example, that I slightly modified to work with Glaze.
+If you know/are the original author of the example, please open an Issue on Github to
+write an attribution here.
+'''
+
 # after I import all module , I set some vars
 angle = 0.1
 texture = 0
