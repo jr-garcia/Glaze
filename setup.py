@@ -1,4 +1,3 @@
-from Cython.Build import cythonize
 from setuptools import setup, Extension
 from distutils.cmd import Command
 from setuptools.command.build_ext import build_ext
@@ -6,6 +5,7 @@ from setuptools.command.install import install
 from distutils import log
 from sys import platform
 import os
+from multiprocessing import cpu_count
 
 setupPath = os.path.abspath(os.path.dirname(__file__))
 GLAZEPATH = './glaze/'
@@ -41,7 +41,8 @@ class regen(Command):
                                           'added to definition'),
                     ('avoidnogil', None, 'Exclude \'with nogil:\' statements for OpenGL Calls. If ommited, '
                                          'all gl calls will be done releasing the gil'),
-                    ('profile', None, 'OpenGL profile {core,compatibility} (defaults to compatibility)')
+                    ('profile', None, 'OpenGL profile {core,compatibility} (defaults to compatibility)'),
+                    ('jobs', 'j', 'Number of parallel jobs to run. (Default = number of cpu\'s)')
                     ]
 
     def __init__(self, dist):
@@ -55,6 +56,7 @@ class regen(Command):
         self.extensions = None
         self.avoidnogil = None
         self.profile = None
+        self.jobs = None
 
     def finalize_options(self):
         assert self.apis is not None, 'Api must be one or more of [gl, egl, wgl, glx]'
@@ -71,7 +73,11 @@ class regen(Command):
         if self.extensions is not None:
             self.extensions = str(self.extensions).split(',')
 
+        if self.jobs is None:
+            self.jobs = cpu_count()
+
     def run(self):
+        from Cython.Build import cythonize
         from _ExtMaker.GlobalMaker import Maker
 
         def regenApi(api, version):
@@ -89,8 +95,9 @@ class regen(Command):
                         cythonizables.append(file)
 
             cythonize(cythonizables,
-                      language='c++',
-                      # compile_time_env={'LIBRARY': b'default'}
+                      language='c',
+                      # compile_time_env={'LIBRARY': b'default'},
+                      nthreads=self.jobs,
                       )
 
         self.announce('Done. Now you can build_ext / install', log.INFO)
@@ -105,7 +112,7 @@ class build_ext_pre(build_ext):
         for file in os.listdir(glazeAbsPath):
             file = os.path.join(glazeAbsPath, file)
             if os.path.isfile(file):
-                if os.path.splitext(file)[1] == '.cpp':
+                if os.path.splitext(file)[1] == '.c':
                     sources.append(file)
 
         for file in os.listdir(gladAbsPath):
