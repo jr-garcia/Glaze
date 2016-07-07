@@ -16,15 +16,15 @@ apiList = ['GL', 'EGL', 'GLX', 'WGL']
 included_dirs = [GLAZEPATH, gladAbsPath]
 
 if platform == 'win32':
-    glLib = 'openGL32'
+    libraries = ['openGL32']
     rldirs = []
     extraArgs = ['/EHsc']
 elif 'linux' in platform:
-    glLib = 'GL'
+    libraries = ['GL', "dl"]
     rldirs = ["$ORIGIN"]
     extraArgs = ["-w", "-O3", '-l.', "-std=c++11", '-DGL_GLEXT_PROTOTYPES']
 else:
-    glLib = 'OpenGL'
+    libraries = ['OpenGL']
     rldirs = []
     extraArgs = []
 
@@ -115,7 +115,7 @@ def getExtensions():
             sources.append(gladFilePath)
             ext = Extension(api,  # name
                             sources,  # sources list
-                            libraries=["dl", glLib],
+                            libraries=libraries,
                             include_dirs=included_dirs,
                             runtime_library_dirs=rldirs,
                             extra_compile_args=extraArgs,
@@ -135,6 +135,7 @@ def getData():
                 data.append(file)
     return data
 
+os.chdir(glazeAbsPath)
 
 setup(
     name="glaze",
