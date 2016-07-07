@@ -3,11 +3,13 @@ Experimental Auto-Generated Python bindings for OpenGL, created with
 Cython and [Glad](https://pypi.python.org/pypi/glad)
 
 ## Status
-(Not working yet)
+Works partially with Glad's default loader.
 
-* The GL backend generates and compiles, but is untested.
+* The GL binding (glaze.gl) generates and compiles, Two test demos run ok.
 Some platform-specific typedefs are ommited, along with the 
 functions that use them.
 
-* Other backends such as GLX or EGL are generated partially.
+* Other bindings such as GLX or EGL are generated partially.
 Won't compile.
+
+![Glaze Demos Image](http://i.imgur.com/yPJBkSH.png?1)
