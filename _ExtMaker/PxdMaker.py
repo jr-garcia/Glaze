@@ -8,10 +8,7 @@ from _ExtMaker.includes.glad_related import GLAD_RELATED_PXD
 
 
 def makePXD(funcs, types, dest, announce, api):
-    # apiPath = os.path.join(dest, api)
-    # if not os.path.exists(apiPath):
-    #     os.mkdir(apiPath)
-    pxdPath = os.path.join(dest, 'c{}.pxd'.format(api))
+    pxdPath = os.path.join(dest, 'c{}.pxd'.format(api.upper()))
     announce('Generating {}...'.format(pxdPath), log.INFO)
 
     with open(pxdPath, 'w') as pxdFile:

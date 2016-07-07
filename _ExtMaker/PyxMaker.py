@@ -14,33 +14,36 @@ class PyxMaker:
         self.announce = announce
         self.enums = enums
         self.funcs = funcs
-        self.c_apiName = 'c' + api
-        self.apiName = api
+        self.c_apiName = 'c' + api.upper()
+        self.apiName = api.upper()
         self.types = types
         self.baseTypes = baseTypes
-        self.dest = dest
+        self.destinyPath = dest
         self.useNoGil = useNoGil
         self.functionNames = []
 
-        self.apiPath = os.path.join(self.dest, self.apiName)
-        if not os.path.exists(self.apiPath):
-            os.mkdir(self.apiPath)
-
     def writeAll(self):
-        self._writeInit()
-        self._writeFunctions()
-
-    def _writeInit(self):
-        pyxPath = os.path.join(self.apiPath, '__init__.pyx')
+        pyxPath = os.path.join(self.destinyPath, '{}.pyx'.format(self.apiName))
         self.announce('Generating {}...'.format(pyxPath), log.INFO)
         with open(pyxPath, 'w') as pyxFile:
+            # Cython specifics >>
+            print('#cython: boundscheck=False', file=pyxFile)
+            print('#cython: embedsignature=True', file=pyxFile)
+            print('#cython: c_string_type=str', file=pyxFile)
+            print('#cython: c_string_encoding=ascii', file=pyxFile)
+
             # cImports >>
             print('from glaze cimport {}'.format(self.c_apiName), file=pyxFile)
             print('from libc.stdint cimport *', file=pyxFile)
             # print('print(\'lib\', LIBRARY)', file=pyxFile)
 
+            print('\n# TYPES >>\n', file=pyxFile)
+            print('ctypedef bint bool', file=pyxFile)
+            print('ctypedef bint BOOL', file=pyxFile)
+            print(voidp_typedef, file=pyxFile)
+
             # Rest >>
-            if self.apiName == 'gl':
+            if self.apiName == 'GL':
                 print('\n# GLAD RELATED >>\n{}'.format(GLAD_RELATED_PYX.format(prefix=self.c_apiName)), file=pyxFile)
 
             print('\n# FUNCTIONS >>', file=pyxFile)
@@ -50,15 +53,15 @@ class PyxMaker:
                 nf = function(f, self.types)
                 sign = self._buildPyxFunc(nf)
                 if sign is not None:
-                    print('\nfrom _{name} import {name}'.format(name=nf.name), file=pyxFile)
+                    print('\n{}'.format(sign), file=pyxFile)
 
             print('\n#ENUMS >>', file=pyxFile)
             eGroups = defaultdict(list)
             for e in self.enums:
-                eGroups[e.group or self.apiName.upper()].append((e.name, e.value))
+                eGroups[e.group or self.apiName].append((e.name, e.value))
             for k in eGroups.keys():
                 enumList = eGroups[k]
-                print('\nclass {}:'.format(k), file=pyxFile)
+                print('\n# {}:'.format(k), file=pyxFile)
                 for e in enumList:
                     fev = e[1]
                     if fev.startswith('(('):
@@ -67,37 +70,7 @@ class PyxMaker:
                         fev = fev.replace(')', '>')
                         fev = fev.replace('(', '')
                         fev = '(<{})'.format(fev)
-                    print('    {} = {}'.format(e[0], fev), file=pyxFile)
-
-    def _writeFunctions(self):
-        self.announce('Generating \'{}\' functions...'.format(self.apiName), log.INFO)
-        sortedFuncKeys = sorted(self.funcs)
-        for fk in sortedFuncKeys:
-            f = self.funcs[fk]
-            nf = function(f, self.types)
-            sign = self._buildPyxFunc(nf)
-            if sign is not None:
-                self.functionNames.append(nf.name)
-                pyxPath = os.path.join(self.apiPath, '_{}.pyx'.format(nf.name))
-                with open(pyxPath, 'w') as pyxFile:
-                    # Cython specifics >>
-                    print('#cython: boundscheck=False', file=pyxFile)
-                    print('#cython: embedsignature=True', file=pyxFile)
-                    print('#cython: c_string_type=str', file=pyxFile)
-                    print('#cython: c_string_encoding=ascii', file=pyxFile)
-
-                    # cImports >>
-                    print('from glaze cimport {}'.format(self.c_apiName), file=pyxFile)
-                    print('from libc.stdint cimport *', file=pyxFile)
-                    # print('print(\'lib\', LIBRARY)', file=pyxFile)
-
-                    print('\n# TYPES >>\n', file=pyxFile)
-                    print('ctypedef bint bool', file=pyxFile)
-                    print('ctypedef bint BOOL', file=pyxFile)
-                    print(voidp_typedef, file=pyxFile)
-
-                    print('\n# FUNCTION >>', file=pyxFile)
-                    print('\n{}'.format(sign), file=pyxFile)
+                    print('{} = {}'.format(e[0], fev), file=pyxFile)
 
     def _buildPyxFunc(self, func):
         def getBaseType(p):

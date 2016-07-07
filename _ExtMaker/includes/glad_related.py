@@ -7,7 +7,7 @@ class gladGLversionStruct:
 # GLVersion = gladGLversionStruct()
 
 def loadGL():
-    return {prefix}.gladLoadGL()"""
+    return <bint>({prefix}.gladLoadGL())"""
 
 GLAD_RELATED_PXD = """
     cdef struct gladGLversionStruct:
