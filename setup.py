@@ -113,7 +113,7 @@ def getExtensions():
         if os.path.exists(filePath):
             sources.append(filePath)
             sources.append(gladFilePath)
-            ext = Extension('*',  # name
+            ext = Extension(api,  # name
                             sources,  # sources list
                             libraries=["dl", glLib],
                             include_dirs=included_dirs,
