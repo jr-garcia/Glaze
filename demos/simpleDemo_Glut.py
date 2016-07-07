@@ -3,7 +3,7 @@ from OpenGL.GLUT import *
 from random import Random
 
 # from OpenGL.GL import *
-from glaze.gl import *
+from glaze.GL import *
 
 
 def keyboard(*args):
@@ -31,11 +31,11 @@ def display():
     tt = ct - lsecs
     if tt >= 1000:
         lsecs = ct
-        glutSetWindowTitle('Glaze basic demo | FPS:' + str(round((fts / tt) * 1000, 2)))
+        glutSetWindowTitle('Glaze simple Glut demo | FPS:' + str(round((fts / tt) * 1000, 2)))
         fts = 0
 
     # // clear the buffers
-    glClear(AttribMask.GL_COLOR_BUFFER_BIT | AttribMask.GL_DEPTH_BUFFER_BIT)
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
     # // draw...
     glLoadIdentity()
 
@@ -47,7 +47,7 @@ def display():
     glRotatef(xpos, 1, 0, 0)
     glRotatef(ypos, 0, 1, 0)
     glRotatef(zpos, 0, 0, 1)
-    glBegin(GL.GL_TRIANGLES)
+    glBegin(GL_TRIANGLES)
 
     glColor3f(1.0, 0.0, 0.0)
     glVertex3f(0., 1.0, 0.)
@@ -91,10 +91,10 @@ def reshape(width, height):
     w = width
     h = height
     glViewport(0, 0, width, height)
-    glMatrixMode(GL.GL_PROJECTION)
+    glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
     gluPerspective(60, float(w) / float(h), .1, -2000)
-    glMatrixMode(GL.GL_MODELVIEW)
+    glMatrixMode(GL_MODELVIEW)
     try:
         gui.setSize([w, h])
     except NameError:
@@ -111,7 +111,7 @@ if __name__ == '__main__':
     glutInitWindowSize(w, h)
     glutInitWindowPosition(320, 30)
 
-    glutCreateWindow("Glaze basic demo | Starting...")
+    glutCreateWindow("Glaze simple Glut demo | Starting...")
 
     #  // load (initialize) Glad
     loadGL()
@@ -123,7 +123,7 @@ if __name__ == '__main__':
     ypos = 0
     zpos = 0
 
-    glEnable(GL.GL_CULL_FACE)
+    glEnable(GL_CULL_FACE)
 
     reshape(w, h)
 

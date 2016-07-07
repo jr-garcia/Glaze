@@ -4,7 +4,7 @@ from PIL import Image
 import sys
 import numpy as np
 
-from glaze.gl import *
+from glaze.GL import *
 
 
 '''
@@ -17,7 +17,7 @@ write an attribution here.
 angle = 0.1
 texture = 0
 # this var set the type of reflection
-reflMode = GL.GL_REFLECTION_MAP_ARB
+reflMode = GL_REFLECTION_MAP_ARB
 lsecs = 0
 fts = 0
 
@@ -26,14 +26,14 @@ fts = 0
 def loadCubemap(faces, path=""):
     texture = np.empty((1,), dtype=np.uint32)
     glGenTextures(1, texture)
-    target_map = GL.GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB
-    glBindTexture(GL.GL_TEXTURE_CUBE_MAP_ARB, texture)
-    glPixelStorei(GL.GL_PACK_ALIGNMENT, 1)
-    glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_S, GL.GL_REPEAT)
-    glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_T, GL.GL_REPEAT)
-    glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
-    glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR)
-    glEnable(GL.GL_TEXTURE_CUBE_MAP_ARB)
+    target_map = GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB
+    glBindTexture(GL_TEXTURE_CUBE_MAP_ARB, texture)
+    glPixelStorei(GL_PACK_ALIGNMENT, 1)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+    glEnable(GL_TEXTURE_CUBE_MAP_ARB)
 
     for face in faces:
         if path != "":
@@ -44,7 +44,7 @@ def loadCubemap(faces, path=""):
         width = image.size[0]
         height = image.size[1]
         image = image.tobytes("raw", "RGBX", 0, -1)
-        gluBuild2DMipmaps(target_map, 3, width, height, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, image)
+        gluBuild2DMipmaps(target_map, 3, width, height, GL_RGBA, GL_UNSIGNED_BYTE, image)
         target_map = target_map + 1
     return texture
 
@@ -55,19 +55,19 @@ def init():
         raise RuntimeError('Error initializing Glad.')
     glClearColor(.40, .30, .90, 0.0)
     glClearDepth(1.0)
-    glDepthFunc(GL.GL_LEQUAL)
-    glEnable(GL.GL_DEPTH_TEST)
-    glHint(GL.GL_POLYGON_SMOOTH_HINT, GL.GL_NICEST)
-    glHint(GL.GL_PERSPECTIVE_CORRECTION_HINT, GL.GL_NICEST)
+    glDepthFunc(GL_LEQUAL)
+    glEnable(GL_DEPTH_TEST)
+    glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST)
+    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST)
 
 
 # this help us when resize the window
 def reshape(width, height):
     glViewport(0, 0, width, height)
-    glMatrixMode(GL.GL_PROJECTION)
+    glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
     gluPerspective(55.0, float(width) / float(height), 1.0, 60.0)
-    glMatrixMode(GL.GL_MODELVIEW)
+    glMatrixMode(GL_MODELVIEW)
     glLoadIdentity()
     gluLookAt(0.0, 6.0, 0.0, 4.0, -4.0, 4.0, 0.0, 0.5, 0.0)
 
@@ -85,16 +85,16 @@ def display():
         glutSetWindowTitle('Glaze Texture Cubemap Demo | FPS:' + str(round((fts / tt) * 1000, 2)))
         fts = 0
 
-    glClear(AttribMask.GL_COLOR_BUFFER_BIT | AttribMask.GL_DEPTH_BUFFER_BIT)
-    glEnable(GL.GL_TEXTURE_CUBE_MAP_ARB)
-    glEnable(GL.GL_TEXTURE_GEN_S)
-    glEnable(GL.GL_TEXTURE_GEN_T)
-    glEnable(GL.GL_TEXTURE_GEN_R)
-    glTexGeni(GL.GL_S, GL.GL_TEXTURE_GEN_MODE, reflMode)
-    glTexGeni(GL.GL_T, GL.GL_TEXTURE_GEN_MODE, reflMode)
-    glTexGeni(GL.GL_R, GL.GL_TEXTURE_GEN_MODE, reflMode)
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+    glEnable(GL_TEXTURE_CUBE_MAP_ARB)
+    glEnable(GL_TEXTURE_GEN_S)
+    glEnable(GL_TEXTURE_GEN_T)
+    glEnable(GL_TEXTURE_GEN_R)
+    glTexGeni(GL_S, GL_TEXTURE_GEN_MODE, reflMode)
+    glTexGeni(GL_T, GL_TEXTURE_GEN_MODE, reflMode)
+    glTexGeni(GL_R, GL_TEXTURE_GEN_MODE, reflMode)
 
-    glBindTexture(GL.GL_TEXTURE_CUBE_MAP_ARB, texture)
+    glBindTexture(GL_TEXTURE_CUBE_MAP_ARB, texture)
     glPushMatrix()
     glTranslatef(2, 2, 2)
     glRotatef(angle, 200, 10, 500)
@@ -116,9 +116,9 @@ def keyPressed(*args):
     if key == '\033':
         sys.exit()
     elif key == 'n' or key == 'N':
-        reflMode = GL.GL_NORMAL_MAP_ARB
+        reflMode = GL_NORMAL_MAP_ARB
     elif key == 'r' or key == 'R':
-        reflMode = GL.GL_REFLECTION_MAP_ARB
+        reflMode = GL_REFLECTION_MAP_ARB
 
 
 # this will animate , is a idle function
