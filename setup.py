@@ -1,7 +1,5 @@
 from setuptools import setup, Extension
 from distutils.cmd import Command
-from setuptools.command.build_ext import build_ext
-from setuptools.command.install import install
 from distutils import log
 from sys import platform
 import os
@@ -13,6 +11,7 @@ glazeAbsPath = os.path.abspath(os.path.join(setupPath, GLAZEPATH))
 SPECSPATH = './specs'
 specsAbsPath = os.path.abspath(os.path.join(setupPath, SPECSPATH))
 gladAbsPath = os.path.abspath(os.path.join(glazeAbsPath, 'glad'))
+apiList = ['GL', 'EGL', 'GLX', 'WGL']
 
 included_dirs = [GLAZEPATH, gladAbsPath]
 
@@ -75,6 +74,8 @@ class regen(Command):
 
         if self.jobs is None:
             self.jobs = cpu_count()
+        else:
+            self.jobs = int(self.jobs)
 
     def run(self):
         from Cython.Build import cythonize
@@ -86,67 +87,60 @@ class regen(Command):
 
         for api in self.apis:
             regenApi(api, self.versions.get(api))
-            apiPath = os.path.join(glazeAbsPath, api)
-            cythonizables = []
-            for file in os.listdir(apiPath):
-                file = os.path.join(apiPath, file)
-                if os.path.isfile(file):
-                    if os.path.splitext(file)[1] == '.pyx':
-                        cythonizables.append(file)
 
-            cythonize(cythonizables,
-                      language='c',
-                      # compile_time_env={'LIBRARY': b'default'},
-                      nthreads=self.jobs,
-                      )
+        cythonizables = []
+        for file in os.listdir(glazeAbsPath):
+            file = os.path.join(glazeAbsPath, file)
+            if os.path.isfile(file):
+                if os.path.splitext(file)[1] == '.pyx':
+                    cythonizables.append(file)
+
+        cythonize(cythonizables,
+                  language='c',
+                  # compile_time_env={'LIBRARY': b'default'},
+                  nthreads=self.jobs,
+                  )
 
         self.announce('Done. Now you can build_ext / install', log.INFO)
 
 
-data = []
-sources = []
+def getExtensions():
+    extensions = []
+    for api in apiList:
+        sources = []
+        filePath = os.path.join(glazeAbsPath, api + '.c')
+        gladFilePath = os.path.join(gladAbsPath, ('glad' + ('' if api == 'GL' else '_' + api)) + '.c')
+        if os.path.exists(filePath):
+            sources.append(filePath)
+            sources.append(gladFilePath)
+            ext = Extension('*',  # name
+                            sources,  # sources list
+                            libraries=["dl", glLib],
+                            include_dirs=included_dirs,
+                            runtime_library_dirs=rldirs,
+                            extra_compile_args=extraArgs,
+                            language="c++")
+
+            extensions.append(ext)
+
+    return extensions
 
 
-class build_ext_pre(build_ext):
-    def __init__(self, dist):
-        for file in os.listdir(glazeAbsPath):
-            file = os.path.join(glazeAbsPath, file)
-            if os.path.isfile(file):
-                if os.path.splitext(file)[1] == '.c':
-                    sources.append(file)
-
-        for file in os.listdir(gladAbsPath):
-            file = os.path.join(gladAbsPath, file)
-            if os.path.isfile(file) and os.path.splitext(file)[1] == '.c':
-                sources.append(file)
-
-        build_ext.__init__(self, dist)
-
-
-class install_pre(install):
-    def __init__(self, dist):
-        for file in os.listdir(glazeAbsPath):
-            file = os.path.join(glazeAbsPath, file)
-            if os.path.isfile(file):
-                if os.path.splitext(file)[1] == '.pxd':
-                    data.append(file)
-
-        install.__init__(self, dist)
+def getData():
+    data = []
+    for file in os.listdir(glazeAbsPath):
+        file = os.path.join(glazeAbsPath, file)
+        if os.path.isfile(file):
+            if os.path.splitext(file)[1] == '.pxd':
+                data.append(file)
+    return data
 
 
 setup(
     name="glaze",
     packages=["glaze"],
-    ext_modules=([
-        Extension('*',  # name
-                  sources,  # sources list
-                  libraries=["dl", glLib],
-                  include_dirs=included_dirs,
-                  runtime_library_dirs=rldirs,
-                  extra_compile_args=extraArgs,
-                  language="c++")]),
-
-    cmdclass={'regen': regen, 'build_ext': build_ext_pre, 'install': install_pre},
+    ext_modules=getExtensions(),
+    cmdclass={'regen': regen},
     # requires=['requests', 'Cython', 'glad'],
-    data_files=data,
+    data_files=getData(),
 )
