@@ -10,7 +10,8 @@ from glad.spec import SPECS
 from glad.opener import URLOpener
 from glad.lang.common.loader import BaseLoader
 
-from .containers import pxd, pyx
+from _ExtMaker.PxdMaker import makePXD
+from _ExtMaker.PyxMaker import PyxMaker
 
 SPECSURL = 'https://cvs.khronos.org/svn/repos/ogl/trunk/doc/registry/public/api/'
 specsPath = ''
@@ -69,11 +70,12 @@ class Maker:
         gladmain()
 
     def _createPXD(self):
-        pxd(self.gen.functions, self.gen.types, self.destPath, self.announce, self.api)
+        makePXD(self.gen.functions, self.gen.types, self.destPath, self.announce, self.api)
 
     def _createPYX(self, includeGil):
-        pyx(self.gen.functions, self.gen.enums, self.gen.types, self.gen.baseTypes,
-            self.destPath, self.announce, self.api, includeGil)
+        maker = PyxMaker(self.gen.functions, self.gen.enums, self.gen.types, self.gen.baseTypes,
+                         self.destPath, self.announce, self.api, includeGil)
+        maker.writeAll()
 
 
 class MyGenerator(Generator):
