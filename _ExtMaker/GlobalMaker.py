@@ -16,7 +16,7 @@ from _ExtMaker.PyxMaker import PyxMaker
 SPECSURL = 'https://cvs.khronos.org/svn/repos/ogl/trunk/doc/registry/public/api/'
 specsPath = ''
 gladPath = ''
-
+force = False
 
 class MyLoader(BaseLoader):
     pass
@@ -24,11 +24,12 @@ class MyLoader(BaseLoader):
 
 class Maker:
     def __init__(self, destPath, specsPathParent, gladPathParent, api, version, announce, extensions=None,
-                 profile=None):
-        global specsPath, gladPath
-        self.destPath = destPath
+                 profile=None, forceDL=None):
+        global specsPath, gladPath, force
         specsPath = specsPathParent
         gladPath = gladPathParent
+        force = bool(forceDL)
+        self.destPath = destPath
         self.spec = get_spec(api, announce)
         self.api = api
         self.announce = announce
@@ -38,11 +39,11 @@ class Maker:
         self.version = version
         self.gen = MyGenerator(self.destPath, self.spec, version, self.myloader, self.extensions)
 
-    def create(self, excludeGil):
+    def create(self):
         self.gen.generate()
         self._createCStuff()
         self._createPXD()
-        self._createPYX(False if excludeGil else True)
+        self._createPYX()
 
     def _createCStuff(self):
         global specsPath, gladPath
@@ -72,9 +73,9 @@ class Maker:
     def _createPXD(self):
         makePXD(self.gen.functions, self.gen.types, self.destPath, self.announce, self.api)
 
-    def _createPYX(self, includeGil):
+    def _createPYX(self):
         maker = PyxMaker(self.gen.functions, self.gen.enums, self.gen.types, self.gen.baseTypes,
-                         self.destPath, self.announce, self.api, includeGil)
+                         self.destPath, self.announce, self.api)
         maker.writeAll()
 
 
@@ -160,7 +161,7 @@ def saveFromRemote(xmlName, dest):
 
 
 def get_spec(value, announce):
-    global specsPath
+    global specsPath, force
 
     if value not in SPECS:
         announce(RuntimeError('Unknown specification: {}'.format(value)), log.ERROR)
@@ -170,7 +171,7 @@ def get_spec(value, announce):
     spec_cls = SPECS[value]
     xmlPath = os.path.join(specsPath, xmlName)
 
-    if not os.path.exists(xmlPath):
+    if not os.path.exists(xmlPath) or force:
         announce('Retrieving \'{}\' specification from SVN...'.format(value), log.INFO)
         saveFromRemote(xmlName, xmlPath)
     return spec_cls.from_file(xmlPath)

@@ -10,7 +10,7 @@ from _ExtMaker.includes.glad_related import GLAD_RELATED_PYX
 
 
 class PyxMaker:
-    def __init__(self, funcs, enums, types, baseTypes, dest, announce, api, useNoGil):
+    def __init__(self, funcs, enums, types, baseTypes, dest, announce, api):
         self.announce = announce
         self.enums = enums
         self.funcs = funcs
@@ -19,7 +19,6 @@ class PyxMaker:
         self.types = types
         self.baseTypes = baseTypes
         self.destinyPath = dest
-        self.useNoGil = useNoGil
         self.functionNames = []
 
     def writeAll(self):
@@ -28,6 +27,14 @@ class PyxMaker:
         with open(pyxPath, 'w') as pyxFile:
             # Cython specifics >>
             print('#cython: boundscheck=False', file=pyxFile)
+            print('#cython: wraparound=False', file=pyxFile)
+            print('#cython: initializedcheck=False', file=pyxFile)
+            print('#cython: nonecheck=False', file=pyxFile)
+            print('#cython: always_allow_keywords=False', file=pyxFile)
+            print('#cython: infer_types=False', file=pyxFile)
+            print('#cython: nonecheck=False', file=pyxFile)
+            print('#cython: optimize.unpack_method_calls=False', file=pyxFile)
+
             print('#cython: embedsignature=True', file=pyxFile)
             print('#cython: c_string_type=str', file=pyxFile)
             print('#cython: c_string_encoding=ascii', file=pyxFile)
@@ -41,6 +48,10 @@ class PyxMaker:
             print('ctypedef bint bool', file=pyxFile)
             print('ctypedef bint BOOL', file=pyxFile)
             print(voidp_typedef, file=pyxFile)
+
+            # GlobalVars >>
+            print('\n# GLOBALS >>\n', file=pyxFile)
+            print('noGil = True', file=pyxFile)
 
             # Rest >>
             if self.apiName == 'GL':
@@ -126,29 +137,36 @@ class PyxMaker:
                     callParams.append(p.name)
                     pythonParams.append((bType, p.name))
 
-        # Build Function body
+        # Build Function body ---->
+
+        # First, Python's calling signature:
         sign.append('def {name}({params}):'.format(name=func.name,
                                                    params=', '.join([paramTypeResolve(p) +
                                                                      p[1] for p in pythonParams])))
 
+        # Second, create the return object, if any:
         if hasRet:
             bType = getBaseType(func.ret)
             if func.ret.is_pointer == 1:
                 sign.append('    cdef {}{}* ret'.format('const ' if func.ret.is_const else '', bType))
             elif func.ret.is_pointer > 1:
                 raise NotImplementedError('Pointer to pointer return type is not implemented. Please fill a bug '
-                                          'report.')
+                                          'report if you need it.')
             else:
                 sign.append('    cdef {}{} ret'.format('const ' if func.ret.is_const else '', bType))
 
-        # The actual call
-        noGil = '    with nogil:\n    ' if self.useNoGil else ''
-        sign.append('{noGil}    {ret}{prefix}{funcName}({cParams})'.format(noGil=noGil,
-                                                                           ret='ret = ' if hasRet else '',
-                                                                           prefix=self.c_apiName + '.',
-                                                                           funcName=func.name,
-                                                                           cParams=', '.join(callParams)))
+        # Third, write down the actual 'C' call:
+        callStr = '{ret}{prefix}{funcName}({cParams})'.format(ret='ret = ' if hasRet else '',
+                                                              prefix=self.c_apiName + '.',
+                                                              funcName=func.name,
+                                                              cParams=', '.join(callParams))
+        sign.append('    if noGil:\n'
+                    '        with nogil:\n'
+                    '            {callStr}\n'
+                    '    else:\n'
+                    '        {callStr}'.format(callStr=callStr))
 
+        # Finally, add the 'return' command with the 'ret' object:
         if hasRet:
             sign.append('    return ret')
         return '\n'.join(sign)
