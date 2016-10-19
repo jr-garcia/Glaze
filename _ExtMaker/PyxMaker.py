@@ -42,6 +42,7 @@ class PyxMaker:
             # cImports >>
             print('from glaze cimport {}'.format(self.c_apiName), file=pyxFile)
             print('from libc.stdint cimport *', file=pyxFile)
+            print('from libcpp.vector cimport vector', file=pyxFile)
             # print('print(\'lib\', LIBRARY)', file=pyxFile)
 
             print('\n# TYPES >>\n', file=pyxFile)
@@ -112,6 +113,7 @@ class PyxMaker:
         sign = []
         callParams = []
         pythonParams = []
+        vectorLines = []
 
         # Collect parameter types and names
         hasRet = not (func.ret.type == 'void')
@@ -129,10 +131,13 @@ class PyxMaker:
                         pythonParams.append((bType + viewCode, p.name))
                         callParams.append('&{}[0]'.format(p.name))
                     else:
-                        pythonParams.append((bType + '[:]', p.name))
-                        callParams.append('<{}{}**>&{}[0]'.format('const ' if p.const else '',
-                                                                  bType,
-                                                                  p.name))
+                        pythonParams.append(('list', p.name))
+                        vectorLines.append('    cdef vector[{ptype}*] cvec_{name} = {name}'.format(
+                                           ptype=bType, name=p.name))
+                        if not p.const:
+                            raise NotImplementedError('passing non-constant pointers to pointer '
+                                                      'is not implemented yet (Function {}).'.format(func.name))
+                        callParams.append('<{}{}**>&cvec_{}[0]'.format('const ' if p.const else '', bType, p.name))
                 else:
                     callParams.append(p.name)
                     pythonParams.append((bType, p.name))
@@ -140,9 +145,8 @@ class PyxMaker:
         # Build Function body ---->
 
         # First, Python's calling signature:
-        sign.append('def {name}({params}):'.format(name=func.name,
-                                                   params=', '.join([paramTypeResolve(p) +
-                                                                     p[1] for p in pythonParams])))
+        sign.append('def {name}({params}):'.format(name=func.name, params=', '.join(
+                [paramTypeResolve(p) + p[1] for p in pythonParams])))
 
         # Second, create the return object, if any:
         if hasRet:
@@ -151,20 +155,21 @@ class PyxMaker:
                 sign.append('    cdef {}{}* ret'.format('const ' if func.ret.is_const else '', bType))
             elif func.ret.is_pointer > 1:
                 raise NotImplementedError('Pointer to pointer return type is not implemented. Please fill a bug '
-                                          'report if you need it.')
+                                          'report if you need it.(Function {})'.format(func.name))
             else:
                 sign.append('    cdef {}{} ret'.format('const ' if func.ret.is_const else '', bType))
 
         # Third, write down the actual 'C' call:
         callStr = '{ret}{prefix}{funcName}({cParams})'.format(ret='ret = ' if hasRet else '',
-                                                              prefix=self.c_apiName + '.',
-                                                              funcName=func.name,
+                                                              prefix=self.c_apiName + '.', funcName=func.name,
                                                               cParams=', '.join(callParams))
-        sign.append('    if noGil:\n'
+        sign.append('{vectorLines}'
+                    '    if noGil:\n'
                     '        with nogil:\n'
                     '            {callStr}\n'
                     '    else:\n'
-                    '        {callStr}'.format(callStr=callStr))
+                    '        {callStr}'.format(vectorLines='\n'.join(vectorLines) + '\n' if len(vectorLines) > 0
+                                               else '', callStr=callStr))
 
         # Finally, add the 'return' command with the 'ret' object:
         if hasRet:

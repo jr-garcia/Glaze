@@ -22,7 +22,7 @@ if platform == 'win32':
 elif 'linux' in platform:
     libraries = ['GL', "dl"]
     # rldirs = ["$ORIGIN"]
-    extraArgs = ["-w", "-O3", '-DGL_GLEXT_PROTOTYPES',
+    extraArgs = ["-w", "-O0", '-DGL_GLEXT_PROTOTYPES',
                  '-fno-var-tracking', '-fno-var-tracking-assignments',
                  # "-std=c++11"
                  ]
@@ -100,19 +100,19 @@ class regen(Command):
                     cythonizables.append(file)
 
         cythonize(cythonizables,
-                  language='c',
+                  language='c++',
                   # compile_time_env={'LIBRARY': b'default'},
                   nthreads=self.jobs,
                   )
 
-        self.announce('Done. Now you can build_ext / install', log.INFO)
+        self.announce('Done. Now you can build_ext / install / develop', log.INFO)
 
 
 def getExtensions():
     extensions = []
     for api in apiList:
         sources = []
-        filePath = os.path.join(glazeAbsPath, api + '.c')
+        filePath = os.path.join(glazeAbsPath, api + '.cpp')
         gladFilePath = os.path.join(gladAbsPath, ('glad' + ('' if api == 'GL' else '_' + api)) + '.c')
         if os.path.exists(filePath):
             sources.append(filePath)
@@ -123,7 +123,7 @@ def getExtensions():
                             include_dirs=included_dirs,
                             # runtime_library_dirs=rldirs,
                             extra_compile_args=extraArgs,
-                            language="c")
+                            language="c++")
 
             extensions.append(ext)
 

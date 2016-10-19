@@ -2,12 +2,13 @@ from __future__ import print_function
 
 import os
 from distutils import log
+from collections import defaultdict
 
 from _ExtMaker.ObjectTypes import function, UNHANDLED_GL_TYPES
 from _ExtMaker.includes.glad_related import GLAD_RELATED_PXD
 
 
-def makePXD(funcs, types, dest, announce, api):
+def makePXD(funcs, types, dest, announce, api, enums):
     pxdPath = os.path.join(dest, 'c{}.pxd'.format(api.upper()))
     announce('Generating {}...'.format(pxdPath), log.INFO)
 
@@ -39,3 +40,13 @@ def makePXD(funcs, types, dest, announce, api):
                     break
             if not discard:
                 print('    cdef {}'.format(nf), file=pxdFile)
+
+        print('\n#ENUMS >>', file=pxdFile)
+        eGroups = defaultdict(list)
+        for e in enums:
+            eGroups[e.group or api].append(e.name)
+        for k in eGroups.keys():
+            enumList = eGroups[k]
+            print('\ncdef enum {}:'.format(k), file=pxdFile)
+            for e in enumList:
+                print('    {}'.format(e), file=pxdFile)

@@ -71,7 +71,7 @@ class Maker:
         gladmain()
 
     def _createPXD(self):
-        makePXD(self.gen.functions, self.gen.types, self.destPath, self.announce, self.api)
+        makePXD(self.gen.functions, self.gen.types, self.destPath, self.announce, self.api, self.gen.enums)
 
     def _createPYX(self):
         maker = PyxMaker(self.gen.functions, self.gen.enums, self.gen.types, self.gen.baseTypes,
