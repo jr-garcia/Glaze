@@ -4,9 +4,6 @@ from random import Random
 
 # from OpenGL.GL import *
 from glaze.GL import *
-from glaze import GL
-
-GL.noGil = False
 
 
 def keyboard(*args):
@@ -18,9 +15,6 @@ def keyboard(*args):
 
     if key == '\033':
         running = False
-    if key.lower() == 'g':
-        GL.noGil = not GL.noGil
-        print('Glaze nogil {}'.format('DISABLED' if not GL.noGil else 'ENABLED'))
 
 
 def display():
@@ -102,7 +96,6 @@ def reshape(width, height):
 
 
 if __name__ == '__main__':
-    print('Glaze nogil {} Press \'g\' to change'.format('DISABLED' if not GL.noGil else 'ENABLED'))
     w, h = [640, 480]
     fts = 0
     lsecs = 0

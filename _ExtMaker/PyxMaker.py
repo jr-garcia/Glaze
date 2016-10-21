@@ -50,10 +50,6 @@ class PyxMaker:
             print('ctypedef bint BOOL', file=pyxFile)
             print(voidp_typedef, file=pyxFile)
 
-            # GlobalVars >>
-            print('\n# GLOBALS >>\n', file=pyxFile)
-            print('noGil = True', file=pyxFile)
-
             # Rest >>
             if self.apiName == 'GL':
                 print('\n# GLAD RELATED >>\n{}'.format(GLAD_RELATED_PYX.format(prefix=self.c_apiName)), file=pyxFile)
@@ -165,10 +161,7 @@ class PyxMaker:
                                                               prefix=self.c_apiName + '.', funcName=func.name,
                                                               cParams=', '.join(callParams))
         sign.append('{vectorLines}'
-                    '    if noGil:\n'
-                    '        with nogil:\n'
-                    '            {callStr}\n'
-                    '    else:\n'
+                    '    with nogil:\n'
                     '        {callStr}'.format(vectorLines='\n'.join(vectorLines) + '\n' if len(vectorLines) > 0
                                                else '', callStr=callStr))
 
