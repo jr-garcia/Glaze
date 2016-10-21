@@ -33,10 +33,13 @@ def makePXD(funcs, types, dest, announce, api, enums):
             nf = function(f, types)
             discard = False
             if nf.ret.type in UNHANDLED_GL_TYPES:
+                announce('\t{} -> unhandled RETURN type ({}). Discarded.'.format(f, nf.ret.type), log.DEBUG)
                 continue
-            for p in nf.params:
+            for i in range(len(nf.params)):
+                p = nf.params[i]
                 if p.type in UNHANDLED_GL_TYPES:
                     discard = True
+                    announce('\t{} -> unhandled PARAM type ({}). Discarded.'.format(f, f.params[i].type), log.DEBUG)
                     break
             if not discard:
                 print('    cdef {}'.format(nf), file=pxdFile)

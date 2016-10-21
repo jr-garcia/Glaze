@@ -18,7 +18,7 @@ class param:
         self.name = self.safeIfKey(p.name)
         self.const = p.type.is_const
         self.pointerLen = p.type.is_pointer
-        self.type = types.get(p.type.type)
+        self.type = types.get(p.type.type, 'void' if p.type.type == 'void' else None)
 
     def __repr__(self):
         return '{}{}{} {}'.format('const ' if self.const else '', self.type, '*' * self.pointerLen, self.name)

@@ -134,9 +134,10 @@ class PyxMaker:
                         pythonParams.append(('list', p.name))
                         vectorLines.append('    cdef vector[{ptype}*] cvec_{name} = {name}'.format(
                                            ptype=bType, name=p.name))
-                        if not p.const:
-                            raise NotImplementedError('passing non-constant pointers to pointer '
-                                                      'is not implemented yet (Function {}).'.format(func.name))
+                        if not p.const or bType == 'voidp':
+                            # print('Function {} ommited (passing non-constant or void pointer to pointer '
+                            #       'is not implemented yet)'.format(func.name))
+                            return None
                         callParams.append('<{}{}**>&cvec_{}[0]'.format('const ' if p.const else '', bType, p.name))
                 else:
                     callParams.append(p.name)
