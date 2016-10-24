@@ -1,13 +1,10 @@
-GLAD_RELATED_PYX = """
-class gladGLversionStruct:
-    def __init__(self, major, minor):
-        self.major = major
-        self.minor = minor
-
-# GLVersion = gladGLversionStruct()
-
-def loadGL():
-    return <bint>({prefix}.gladLoadGL())"""
+GLADstrings = {'GL': """
+def {version}_loadGL():
+    cdef bint res
+    with nogil:
+        res = <bint>({prefix}.gladLoad{api}())
+    return res
+    """}
 
 GLAD_RELATED_PXD = """
     cdef struct gladGLversionStruct:

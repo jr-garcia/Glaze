@@ -37,12 +37,12 @@ class regen(Command):
                                     'separated by \',\''),
                     ('maxver=', None, 'Dictionary of api version to generate for each api as '
                                       'api=major.minor (Defaults to latest if omitted)'),
-                    ('loader=', None, 'Library to use as loader. Example: SDL'),
+                    ('loader=', None, 'Library to use as loader. Example: SDL (not implemented)'),
                     ('extensions=', None, 'List of extensions to include,'
                                           'separated by \',\'. If empty, all extensions will be'
                                           'added to definition'),
-                    ('profile', None, 'OpenGL profile {core,compatibility} (defaults to compatibility)'),
-                    ('jobs', 'j', 'Number of parallel jobs to run. (Default = number of cpu\'s)'),
+                    ('profile=', None, 'OpenGL profile {core,compatibility} (defaults to compatibility)'),
+                    ('jobs=', None, 'Number of parallel jobs to run. (Default = number of cpu\'s)'),
                     ('force-spec-dl', None, 'Force the re-download of the api specs. Usefull to et the most'
                                             'up-to-date definitions')
                     ]
@@ -95,9 +95,14 @@ class regen(Command):
         cythonizables = []
         for file in os.listdir(glazeAbsPath):
             file = os.path.join(glazeAbsPath, file)
-            if os.path.isfile(file):
-                if os.path.splitext(file)[1] == '.pyx':
-                    cythonizables.append(file)
+            if os.path.splitext(file)[1] == '.pyx':
+                cythonizables.append(file)
+            if not os.path.isfile(file) and os.path.basename(file) != 'glad':
+                for file2 in os.listdir(file):
+                    file2 = os.path.join(file, file2)
+                    if os.path.isfile(file2):
+                        if os.path.splitext(file2)[1] == '.pyx':
+                            cythonizables.append(file2)
 
         cythonize(cythonizables,
                   language='c++',
@@ -109,23 +114,31 @@ class regen(Command):
 
 
 def getExtensions():
-    extensions = []
-    for api in apiList:
-        sources = []
-        filePath = os.path.join(glazeAbsPath, api + '.cpp')
-        gladFilePath = os.path.join(gladAbsPath, ('glad' + ('' if api == 'GL' else '_' + api)) + '.c')
-        if os.path.exists(filePath):
-            sources.append(filePath)
-            sources.append(gladFilePath)
-            ext = Extension('glaze.' + api,  # name
-                            sources,  # sources list
-                            libraries=libraries,
-                            include_dirs=included_dirs,
+    extensions = [Extension('glaze.utils',  # name
+                            [os.path.join(glazeAbsPath, 'utils.pyx')],  # sources list
+                            libraries=libraries, include_dirs=included_dirs,
                             # runtime_library_dirs=rldirs,
-                            extra_compile_args=extraArgs,
-                            language="c++")
+                            extra_compile_args=extraArgs, language="c++")]
+    for api in apiList:
+        extPath = os.path.join(glazeAbsPath, api.upper())
+        if not os.path.exists(extPath):
+            continue
+        gladFilePath = os.path.join(gladAbsPath, ('glad' + ('' if api == 'GL' else '_' + api)) + '.c')
+        for file in os.listdir(extPath):
+            sources = [gladFilePath]
+            file = os.path.join(extPath, file)
+            if os.path.isfile(file):
+                if os.path.splitext(file)[1] == '.cpp':
+                    sources.append(file)
+                    ext = Extension('glaze.' + api + '.' + os.path.splitext(os.path.basename(file))[0],  # name
+                                    sources,  # sources list
+                                    libraries=libraries,
+                                    include_dirs=included_dirs,
+                                    # runtime_library_dirs=rldirs,
+                                    extra_compile_args=extraArgs,
+                                    language="c++")
 
-            extensions.append(ext)
+                    extensions.append(ext)
 
     return extensions
 

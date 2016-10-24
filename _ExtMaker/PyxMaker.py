@@ -5,12 +5,11 @@ from collections import defaultdict
 from distutils import log
 
 from _ExtMaker.ObjectTypes import function
-from _ExtMaker.includes.gl import voidp_typedef
-from _ExtMaker.includes.glad_related import GLAD_RELATED_PYX
+from _ExtMaker.includes.glad_related import GLADstrings
 
 
 class PyxMaker:
-    def __init__(self, funcs, enums, types, baseTypes, dest, announce, api):
+    def __init__(self, funcs, enums, types, baseTypes, dest, announce, api, versionName):
         self.announce = announce
         self.enums = enums
         self.funcs = funcs
@@ -20,9 +19,12 @@ class PyxMaker:
         self.baseTypes = baseTypes
         self.destinyPath = dest
         self.functionNames = []
+        self.versionName = versionName
 
     def writeAll(self):
-        pyxPath = os.path.join(self.destinyPath, '{}.pyx'.format(self.apiName))
+        destDir = os.path.join(self.destinyPath, self.apiName)
+        pyxName = getNameFromVersion(self.versionName)
+        pyxPath = os.path.join(destDir, pyxName + '.pyx')
         self.announce('Generating {}...'.format(pyxPath), log.INFO)
         with open(pyxPath, 'w') as pyxFile:
             # Cython specifics >>
@@ -43,42 +45,44 @@ class PyxMaker:
             print('from glaze cimport {}'.format(self.c_apiName), file=pyxFile)
             print('from libc.stdint cimport *', file=pyxFile)
             print('from libcpp.vector cimport vector', file=pyxFile)
+            print('from ..utils cimport *', file=pyxFile)
             # print('print(\'lib\', LIBRARY)', file=pyxFile)
 
             print('\n# TYPES >>\n', file=pyxFile)
             print('ctypedef bint bool', file=pyxFile)
             print('ctypedef bint BOOL', file=pyxFile)
-            print(voidp_typedef, file=pyxFile)
 
-            # Rest >>
-            if self.apiName == 'GL':
-                print('\n# GLAD RELATED >>\n{}'.format(GLAD_RELATED_PYX.format(prefix=self.c_apiName)), file=pyxFile)
+            # Glad >>
+            pyxstr = GLADstrings[self.apiName].format(version=pyxName, prefix=self.c_apiName, api=self.apiName)
+            print(pyxstr, file=pyxFile)
 
-            print('\n# FUNCTIONS >>', file=pyxFile)
-            sortedFuncKeys = sorted(self.funcs)
-            for fk in sortedFuncKeys:
-                f = self.funcs[fk]
-                nf = function(f, self.types)
-                sign = self._buildPyxFunc(nf)
-                if sign is not None:
-                    print('\n{}'.format(sign), file=pyxFile)
+            if len(self.funcs) > 0:
+                print('\n# FUNCTIONS >>', file=pyxFile)
+                sortedFuncKeys = sorted(self.funcs)
+                for fk in sortedFuncKeys:
+                    f = self.funcs[fk]
+                    nf = function(f, self.types)
+                    sign = self._buildPyxFunc(nf)
+                    if sign is not None:
+                        print('\n{}'.format(sign), file=pyxFile)
 
-            print('\n#ENUMS >>', file=pyxFile)
-            eGroups = defaultdict(list)
-            for e in self.enums:
-                eGroups[e.group or self.apiName].append((e.name, e.value))
-            for k in eGroups.keys():
-                enumList = eGroups[k]
-                print('\n# {}:'.format(k), file=pyxFile)
-                for e in enumList:
-                    fev = e[1]
-                    if fev.startswith('(('):
-                        fev = fev.strip('()')
-                        fev = fev.strip('()')
-                        fev = fev.replace(')', '>')
-                        fev = fev.replace('(', '')
-                        fev = '(<{})'.format(fev)
-                    print('{} = {}'.format(e[0], fev), file=pyxFile)
+            if len(self.enums) > 0:
+                print('\n# ENUMS >>', file=pyxFile)
+                eGroups = defaultdict(list)
+                for e in self.enums:
+                    eGroups[e.group or self.apiName].append((e.name, e.value))
+                for k in eGroups.keys():
+                    enumList = eGroups[k]
+                    print('\n# {}:'.format(k), file=pyxFile)
+                    for e in enumList:
+                        fev = e[1]
+                        if fev.startswith('(('):
+                            fev = fev.strip('()')
+                            fev = fev.strip('()')
+                            fev = fev.replace(')', '>')
+                            fev = fev.replace('(', '')
+                            fev = '(<{})'.format(fev)
+                        print('{} = {}'.format(e[0], fev), file=pyxFile)
 
     def _buildPyxFunc(self, func):
         def getBaseType(p):
@@ -123,9 +127,12 @@ class PyxMaker:
                 bType = getBaseType(p)
                 if p.pointerLen > 0:
                     if p.pointerLen == 1:
-                        viewCode = '[::1]' if bType != 'voidp' else ''
-                        pythonParams.append((bType + viewCode, p.name))
-                        callParams.append('&{}[0]'.format(p.name))
+                        if bType == 'voidp':
+                            callParams.append('getVoidP({})'.format(p.name))
+                            pythonParams.append(('voidpable', p.name))
+                        else:
+                            callParams.append('&{}[0]'.format(p.name))
+                            pythonParams.append((bType + '[::1]', p.name))
                     else:
                         pythonParams.append(('list', p.name))
                         vectorLines.append('    cdef vector[{ptype}*] cvec_{name} = {name}'.format(
@@ -169,3 +176,21 @@ class PyxMaker:
         if hasRet:
             sign.append('    return ret')
         return '\n'.join(sign)
+
+
+def getNameFromVersion(versionName):
+    if versionName.lower().__contains__('version'):
+        pyxName = '{}'.format(versionName)
+    else:
+        pyxName = 'ext_{}'.format(versionName)
+    return pyxName
+
+
+def writeGladLoad(announce, initpath, versionsList):
+    announce('Finalizing {}...'.format(initpath), log.INFO)
+    with open(initpath, 'a') as pyxFile:
+        print('\n\ndef loadGL():', file=pyxFile)
+        for v in versionsList:
+            ver = getNameFromVersion(v)
+            print('    if not {version}_loadGL():\n'
+                  '        raise RuntimeError(\'{version} could not be loaded\')'.format(version=ver), file=pyxFile)

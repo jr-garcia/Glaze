@@ -1,7 +1,7 @@
 import sys
 import os
 from distutils import log
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from requests import get
 
 from glad.__main__ import main as gladmain
@@ -10,8 +10,9 @@ from glad.spec import SPECS
 from glad.opener import URLOpener
 from glad.lang.common.loader import BaseLoader
 
-from _ExtMaker.PxdMaker import makePXD
-from _ExtMaker.PyxMaker import PyxMaker
+from .PxdMaker import makePXD
+from .PyxMaker import PyxMaker, writeGladLoad
+from .includes.utils import *
 
 SPECSURL = 'https://cvs.khronos.org/svn/repos/ogl/trunk/doc/registry/public/api/'
 specsPath = ''
@@ -43,7 +44,61 @@ class Maker:
         self.gen.generate()
         self._createCStuff()
         self._createPXD()
-        self._createPYX()
+        versionsStrings = []
+        destDir = os.path.join(self.destPath, self.api.upper())
+        if not os.path.exists(destDir):
+            os.mkdir(destDir)
+        # Initialize __init__.py
+        apiInitPath = os.path.join(destDir, '__init__.py')
+        with open(apiInitPath, 'w'):
+            pass
+        # Write api version's pyx files
+        for version in self.gen.versions:
+            versionsStrings.append(version.name)
+            with open(apiInitPath, 'a') as initFile:
+                print('from .{} import *'.format(version.name), file=initFile)
+            self._createPYX(version)
+        for version in self.gen.extensions_sets.values():
+            versionsStrings.append(version.name)
+            with open(apiInitPath, 'a') as initFile:
+                print('from .ext_{} import *'.format(version.name), file=initFile)
+            self._createPYX(version)
+
+        # write 'utils' files and imports
+        self.createUtilsPxd()
+        self.createUtilsPyx()
+        # Write down Glad stuff
+        writeGladLoad(self.announce, apiInitPath, versionsStrings)
+        with open(apiInitPath, 'a') as initFile:
+            print('    return True', file=initFile)
+
+    def createUtilsPyx(self):
+        utilsPyxPath = os.path.join(self.destPath, 'utils.pyx')
+        with open(utilsPyxPath, 'w') as pyxFile:
+            # Cython specifics >>
+            print('#cython: boundscheck=False', file=pyxFile)
+            print('#cython: wraparound=False', file=pyxFile)
+            print('#cython: initializedcheck=False', file=pyxFile)
+            print('#cython: nonecheck=False', file=pyxFile)
+            print('#cython: always_allow_keywords=False', file=pyxFile)
+            print('#cython: infer_types=False', file=pyxFile)
+            print('#cython: nonecheck=False', file=pyxFile)
+            print('#cython: optimize.unpack_method_calls=False', file=pyxFile)
+
+            print('#cython: embedsignature=True', file=pyxFile)
+            print('#cython: c_string_type=str', file=pyxFile)
+            print('#cython: c_string_encoding=ascii', file=pyxFile)
+
+            print(sizeof_str, file=pyxFile)
+            print(getVoidP_str, file=pyxFile)
+
+    def createUtilsPxd(self):
+        utilsPxdPath = os.path.join(self.destPath, 'utils.pxd')
+        with open(utilsPxdPath, 'w') as pxdFile:
+            print(voidp_typedef, file=pxdFile)
+            print(voidpable_typedef, file=pxdFile)
+            print(sizeable_typedef, file=pxdFile)
+            print(getVoidP_str_def, file=pxdFile)
 
     def _createCStuff(self):
         global specsPath, gladPath
@@ -73,9 +128,9 @@ class Maker:
     def _createPXD(self):
         makePXD(self.gen.functions, self.gen.types, self.destPath, self.announce, self.api, self.gen.enums)
 
-    def _createPYX(self):
-        maker = PyxMaker(self.gen.functions, self.gen.enums, self.gen.types, self.gen.baseTypes,
-                         self.destPath, self.announce, self.api)
+    def _createPYX(self, version):
+        maker = PyxMaker(version.functions, version.enums, self.gen.types, self.gen.baseTypes,
+                         self.destPath, self.announce, self.api, version.name)
         maker.writeAll()
 
 
@@ -84,6 +139,8 @@ class MyGenerator(Generator):
         self.baseTypes = {}
         self.functions = {}
         self.enums = []
+        self.extensions_sets = defaultdict(ExtensionsSet)
+        self.versions = []
         self.types = OrderedDict()
         super(MyGenerator, self).__init__(path, spec, api, extensions, loader=loader, local_files=True,
                                           omit_khrplatform=True)
@@ -98,16 +155,21 @@ class MyGenerator(Generator):
         funcs = set()
         enums = set()
 
-        def fillStuff(_features):
-            for feature in _features.items():
-                for version in feature[1]:
-                    funcs.update(version.functions)
-                    enums.update(version.enums)
+        for feature in features.items():
+            for version in feature[1]:
+                self.versions.append(Version(version))
+                funcs.update(version.functions)
+                enums.update(version.enums)
 
-        fillStuff(features)
-
-        for ext in extensions.items():
-            fillStuff({ext[0]: ext[1]})
+        for extlist in extensions.items():
+            for version in extlist[1]:
+                funcs.update(version.functions)
+                enums.update(version.enums)
+                start = version.name.find('_', 1) + 1
+                stop = version.name.find('_', start)
+                group = version.name[start: stop]
+                self.extensions_sets[group].add(version)
+                self.extensions_sets[group].name = group
 
         self.functions = {}
         for f in funcs:
@@ -175,3 +237,27 @@ def get_spec(value, announce):
         announce('Retrieving \'{}\' specification from SVN...'.format(value), log.INFO)
         saveFromRemote(xmlName, xmlPath)
     return spec_cls.from_file(xmlPath)
+
+
+class Version:
+    def __init__(self, version):
+        self.name = version.name
+        self.functions = {}
+        for f in version.functions:
+            self.functions[str(f)] = f
+        self.enums = list(version.enums)
+
+    def __repr__(self):
+        return self.name
+
+
+class ExtensionsSet:
+    def __init__(self):
+        self.name = ''
+        self.functions = {}
+        self.enums = set()
+
+    def add(self, extension):
+        for f in extension.functions:
+            self.functions[str(f)] = f
+        self.enums.update(extension.enums)
