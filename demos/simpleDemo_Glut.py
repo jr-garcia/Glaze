@@ -2,7 +2,6 @@ from OpenGL.GLU import gluLookAt, gluPerspective
 from OpenGL.GLUT import *
 from random import Random
 
-# from OpenGL.GL import *
 from glaze.GL import *
 
 
