@@ -31,7 +31,6 @@ class PyxMaker:
             print('#cython: boundscheck=False', file=pyxFile)
             print('#cython: wraparound=False', file=pyxFile)
             print('#cython: initializedcheck=False', file=pyxFile)
-            print('#cython: nonecheck=False', file=pyxFile)
             print('#cython: always_allow_keywords=False', file=pyxFile)
             print('#cython: infer_types=False', file=pyxFile)
             print('#cython: optimize.unpack_method_calls=False', file=pyxFile)
@@ -167,9 +166,8 @@ class PyxMaker:
                                                               prefix=self.c_apiName + '.', funcName=func.name,
                                                               cParams=', '.join(callParams))
         sign.append('{vectorLines}'
-                    '    with nogil:\n'
-                    '        {callStr}'.format(vectorLines='\n'.join(vectorLines) + '\n' if len(vectorLines) > 0
-                                               else '', callStr=callStr))
+                    '    {callStr}'.format(vectorLines='\n'.join(vectorLines) + '\n' if len(vectorLines) > 0
+                                            else '', callStr=callStr))
 
         # Finally, add the 'return' command with the 'ret' object:
         if hasRet:

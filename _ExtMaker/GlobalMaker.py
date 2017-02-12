@@ -79,10 +79,8 @@ class Maker:
             print('#cython: boundscheck=False', file=pyxFile)
             print('#cython: wraparound=False', file=pyxFile)
             print('#cython: initializedcheck=False', file=pyxFile)
-            print('#cython: nonecheck=False', file=pyxFile)
             print('#cython: always_allow_keywords=False', file=pyxFile)
             print('#cython: infer_types=False', file=pyxFile)
-            print('#cython: nonecheck=False', file=pyxFile)
             print('#cython: optimize.unpack_method_calls=False', file=pyxFile)
 
             print('#cython: embedsignature=True', file=pyxFile)
