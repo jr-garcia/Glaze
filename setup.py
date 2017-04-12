@@ -115,7 +115,7 @@ class regen(Command):
 
 def getExtensions():
     extensions = [Extension('glaze.utils',  # name
-                            [os.path.join(glazeAbsPath, 'utils.pyx')],  # sources list
+                            [os.path.join(glazeAbsPath, 'utils.cpp')],  # sources list
                             libraries=libraries, include_dirs=included_dirs,
                             # runtime_library_dirs=rldirs,
                             extra_compile_args=extraArgs, language="c++")]
