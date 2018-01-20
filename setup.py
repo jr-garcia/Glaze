@@ -43,7 +43,7 @@ class regen(Command):
                                           'added to definition'),
                     ('profile=', None, 'OpenGL profile {core,compatibility} (defaults to compatibility)'),
                     ('jobs=', None, 'Number of parallel jobs to run. (Default = number of cpu\'s)'),
-                    ('force-spec-dl', None, 'Force the re-download of the api specs. Usefull to et the most'
+                    ('force-spec-dl', None, 'Force the re-download of the api specs. Usefull to get the most'
                                             'up-to-date definitions')
                     ]
 
