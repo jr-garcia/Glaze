@@ -75,7 +75,10 @@ class regen(Command):
         if self.extensions is not None:
             self.extensions = str(self.extensions).split(',')
 
-        if self.jobs is None:
+        if platform == 'win32':
+            self.jobs = 0
+            self.announce('Jobs limited to 1 in Windows (unresolved bug).', log.WARN)
+        elif self.jobs is None:
             self.jobs = cpu_count()
         else:
             self.jobs = int(self.jobs)
