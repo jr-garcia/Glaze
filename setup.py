@@ -116,6 +116,17 @@ class regen(Command):
         self.announce('Done. Now you can build_ext / install / develop', log.INFO)
 
 
+def getPackages(packages):
+    baseName = packages[0]
+    for api in apiList:
+        extPath = os.path.join(glazeAbsPath, api.upper())
+        if not os.path.exists(extPath):
+            continue
+        else:
+            packages.append(baseName + '.' + api)
+    return packages
+
+
 def getExtensions():
     extensions = [Extension('glaze.utils',  # name
                             [os.path.join(glazeAbsPath, 'utils.cpp')],  # sources list
@@ -155,9 +166,10 @@ def getData():
                 data.append(file)
     return data
 
+
 setup(
     name="glaze",
-    packages=["glaze"],
+    packages=getPackages(["glaze"]),
     ext_modules=getExtensions(),
     cmdclass={'regen': regen},
     # requires=['requests', 'Cython', 'glad'],
